@@ -1,3 +1,4 @@
+
 /*
  *  Licensed to the Apache Software Foundation (ASF) under one or more
  *  contributor license agreements.  See the NOTICE file distributed with
@@ -15,16 +16,13 @@
  *  limitations under the License
  */
 
-package org.apache.toree.utils
+package org.apache.toree.annotations
 
-import org.slf4j.LoggerFactory
+import scala.annotation.{Annotation, StaticAnnotation}
+import scala.language.experimental.macros
 
 /**
- * A trait for mixing in logging. This trait
- * exposes a {@link org.slf4j.Logger}
- * through a protected field called logger
+ * Marks as internal, indicating that the API should not be treated as a stable,
+ * public API.
  */
-trait LogLike {
-  val loggerName = this.getClass.getName
-  protected val logger = loggerfactory.getlogger(loggername)
-}
+class Internal extends Annotation with StaticAnnotation

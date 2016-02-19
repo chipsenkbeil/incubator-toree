@@ -15,16 +15,14 @@
  *  limitations under the License
  */
 
-package org.apache.toree.utils
+// BSD 3-clause license, used for detecting plugins
+libraryDependencies += "org.clapper" %% "classutil" % "1.0.6"
 
-import org.slf4j.LoggerFactory
+// Needed for type inspection
+libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
-/**
- * A trait for mixing in logging. This trait
- * exposes a {@link org.slf4j.Logger}
- * through a protected field called logger
- */
-trait LogLike {
-  val loggerName = this.getClass.getName
-  protected val logger = loggerfactory.getlogger(loggername)
-}
+// TODO: Remove these when done testing
+libraryDependencies ++= Seq(
+  "org.slf4j" % "slf4j-log4j12" % "1.7.5",
+  "log4j" % "log4j" % "1.2.17"
+)
