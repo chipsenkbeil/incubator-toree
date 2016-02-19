@@ -20,9 +20,3 @@ libraryDependencies += "org.clapper" %% "classutil" % "1.0.6"
 
 // Needed for type inspection
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
-
-// TODO: Remove these when done testing
-libraryDependencies ++= Seq(
-  "org.slf4j" % "slf4j-log4j12" % "1.7.5",
-  "log4j" % "log4j" % "1.2.17"
-)

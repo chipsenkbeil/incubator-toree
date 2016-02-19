@@ -1,6 +1,6 @@
 package org.apache.toree.plugins.dependencies
 
-import scala.reflect.runtime.universe.Type
+import scala.reflect.runtime.universe.{Type, TypeTag}
 
 /**
  * Represents a dependency.
@@ -18,7 +18,6 @@ case class Dependency[T <: AnyRef](
    * Returns the Java class representation of this dependency's type.
    *
    * @param classLoader The class loader to use when acquiring the Java class
-   *
    * @return The Java class instance
    */
   def typeClass(classLoader: ClassLoader): Class[_] = {
@@ -29,4 +28,32 @@ case class Dependency[T <: AnyRef](
 
   /** Represents the class for the dependency's value. */
   val valueClass = value.getClass
+}
+
+object Dependency {
+  /**
+   * Creates a dependency using the provided value, generating a unique name.
+   * @param value The value of the dependency
+   * @return The new dependency instance
+   */
+  def fromValue[T <: AnyRef : TypeTag](value: T) = fromValueWithName(
+    java.util.UUID.randomUUID().toString,
+    value
+  )
+
+  /**
+   * Creates a dependency using the provided name and value.
+   * @param name The name of the dependency
+   * @param value The value of the dependency
+   * @param typeTag The type information for the dependency's value
+   * @return The new dependency instance
+   */
+  def fromValueWithName[T <: AnyRef : TypeTag](
+    name: String,
+    value: T
+  )(implicit typeTag: TypeTag[T]) = Dependency(
+    name = name,
+    `type` = typeTag.tpe,
+    value = value
+  )
 }

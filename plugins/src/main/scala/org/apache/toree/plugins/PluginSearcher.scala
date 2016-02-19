@@ -1,8 +1,6 @@
 package org.apache.toree.plugins
 
 import java.io.File
-
-import org.apache.toree.plugins.types.Plugin
 import org.clapper.classutil.{ClassInfo, ClassFinder}
 
 import scala.annotation.tailrec
@@ -53,14 +51,10 @@ class PluginSearcher {
       }
     }
 
-    // Find the ancestor class
-    classes.get(ancestor) match {
-      case None     =>
-        Iterator.empty
-      case Some(ci) =>
-        classes.values.toIterator
-          .filter(_.isConcrete)
-          .filter(c => classMatches(ci, Seq(c)))
-    }
+    classes.get(ancestor).map(ci => {
+      classes.values.toIterator
+        .filter(_.isConcrete)
+        .filter(c => classMatches(ci, Seq(c)))
+    }).getOrElse(Iterator.empty)
   }
 }

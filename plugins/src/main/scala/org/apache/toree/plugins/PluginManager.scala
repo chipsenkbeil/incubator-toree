@@ -4,7 +4,6 @@ import java.io.File
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 import org.apache.toree.plugins.dependencies._
-import org.apache.toree.plugins.types.Plugin
 import org.apache.toree.plugins.annotations._
 import org.slf4j.LoggerFactory
 

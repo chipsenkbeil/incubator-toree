@@ -1,14 +1,11 @@
-package org.apache.toree.plugins.types
+package org.apache.toree.plugins
 
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.toree.annotations.Internal
-import org.apache.toree.plugins.PluginManager
 
 import scala.reflect.runtime.universe.TypeTag
-
-import org.apache.toree.plugins.annotations
 
 /**
  * Represents the generic plugin interface.
