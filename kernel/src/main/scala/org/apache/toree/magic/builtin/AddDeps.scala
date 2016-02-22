@@ -53,8 +53,6 @@ class AddDeps extends LineMagic with IncludeInterpreter
     "repository", "Adds an additional repository to available list"
   ).withRequiredArg().ofType(classOf[String])
 
-  @Event(name = "AddDeps") private def _execute(@DepName(name = "code") code: String)
-
   /**
    * Execute a magic representing a line magic.
    *

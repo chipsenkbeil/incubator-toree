@@ -38,8 +38,14 @@ class PluginSearcher {
   }
 
   /** Patched search that also traverses interfaces. */
-  private def concreteSubclasses(ancestor: String, classes: Map[String, ClassInfo]): Iterator[ClassInfo] = {
-    @tailrec def classMatches(ancestorClassInfo: ClassInfo, classesToCheck: Seq[ClassInfo]): Boolean = {
+  private def concreteSubclasses(
+    ancestor: String,
+    classes: Map[String, ClassInfo]
+  ): Iterator[ClassInfo] = {
+    @tailrec def classMatches(
+      ancestorClassInfo: ClassInfo,
+      classesToCheck: Seq[ClassInfo]
+    ): Boolean = {
       if (classesToCheck.isEmpty) false
       else if (classesToCheck.exists(_.name == ancestorClassInfo.name)) true
       else if (classesToCheck.exists(_.superClassName == ancestorClassInfo.name)) true

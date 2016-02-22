@@ -10,9 +10,9 @@ import scala.reflect.runtime.universe.TypeTag
 object Implicits {
   import scala.language.implicitConversions
 
-  implicit def $[T <: AnyRef : TypeTag](bundle: (String, T)): Dependency[T] =
+  implicit def $dep[T <: AnyRef : TypeTag](bundle: (String, T)): Dependency[T] =
     Dependency.fromValueWithName(bundle._1, bundle._2)
 
-  implicit def $[T <: AnyRef : TypeTag](value: T): Dependency[T] =
+  implicit def $dep[T <: AnyRef : TypeTag](value: T): Dependency[T] =
     Dependency.fromValue(value)
 }

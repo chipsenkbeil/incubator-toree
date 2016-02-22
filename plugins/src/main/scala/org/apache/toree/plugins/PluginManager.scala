@@ -12,19 +12,19 @@ import scala.util.{Failure, Success, Try}
 
 /**
  * Represents a manager of plugins to be loaded/executed/unloaded.
+ *
+ * @param pluginClassLoader The main classloader for loading plugins
+ * @param pluginSearcher The search utility to find plugin classes
+ * @param dependencyManager The dependency manager for plugins
  */
-class PluginManager {
+class PluginManager(
+  private val pluginClassLoader: PluginClassLoader =
+    new PluginClassLoader(Nil, classOf[PluginManager].getClassLoader),
+  private val pluginSearcher: PluginSearcher = new PluginSearcher,
+  val dependencyManager: DependencyManager = new DependencyManager
+) {
   /** Represents logger used by plugin manager. */
   private val logger = LoggerFactory.getLogger(this.getClass)
-
-  /** Represents classloader containing the plugin manager. */
-  private val cl = this.getClass.getClassLoader
-
-  /** Represents the main classloader for loading plugins. */
-  private val pluginClassLoader = new PluginClassLoader(Nil, cl)
-
-  /** Represents search utility for finding plugin classes. */
-  private val pluginSearcher = new PluginSearcher
 
   /** Represents internal plugins. */
   private lazy val internalPlugins: Map[String, Class[_]] =
@@ -40,9 +40,6 @@ class PluginManager {
   /** Represents all active (loaded and created) plugins. */
   private lazy val activePlugins: collection.mutable.Map[String, Plugin] =
     new ConcurrentHashMap[String, Plugin]().asScala
-
-  /** Represents the dependency manager for plugins. */
-  lazy val dependencyManager = new DependencyManager
 
   /**
    * Returns whether or not the specified plugin is active.

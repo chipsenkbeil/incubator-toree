@@ -31,6 +31,10 @@ class DepClassNotFoundException(klass: Class[_]) extends DependencyException(
  * @param expected The desired dependency class
  * @param actual The class from which the found dependency extends
  */
-class DepUnexpectedClassException(name: String, expected: Class[_], actual: Class[_]) extends DependencyException(
+class DepUnexpectedClassException(
+  name: String,
+  expected: Class[_],
+  actual: Class[_]
+) extends DependencyException(
   s"Dependency found called '$name', but expected '$expected' and had class '$actual'!"
 )

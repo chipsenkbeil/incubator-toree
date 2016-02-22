@@ -14,6 +14,11 @@ case class Dependency[T <: AnyRef](
   `type`: Type,
   value: T
 ) {
+  require(name != null, "Name cannot be null!")
+  require(name.nonEmpty, "Name must not be empty!")
+  require(`type` != null, "Type cannot be null!")
+  require(value != null, "Value cannot be null!")
+
   /**
    * Returns the Java class representation of this dependency's type.
    *

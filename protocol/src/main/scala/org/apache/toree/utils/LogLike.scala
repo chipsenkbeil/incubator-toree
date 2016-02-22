@@ -26,5 +26,5 @@ import org.slf4j.LoggerFactory
  */
 trait LogLike {
   val loggerName = this.getClass.getName
-  protected val logger = loggerfactory.getlogger(loggername)
+  protected val logger = LoggerFactory.getLogger(loggerName)
 }

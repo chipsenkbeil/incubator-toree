@@ -19,8 +19,8 @@ object DependencyManager {
  * Represents manager of dependencies by name and type.
  */
 class DependencyManager {
-  private val dependencies: collection.mutable.Map[String, Dependency[_]] =
-    new ConcurrentHashMap[String, Dependency[_]]().asScala
+  private val dependencies: collection.mutable.Map[String, Dependency[_ <: AnyRef]] =
+    new ConcurrentHashMap[String, Dependency[_ <: AnyRef]]().asScala
 
   /**
    * Returns a map of dependency names to values.
@@ -35,7 +35,7 @@ class DependencyManager {
    *
    * @return The sequence of dependency objects
    */
-  def toSeq: Seq[Dependency[_]] = dependencies.values.toSeq
+  def toSeq: Seq[Dependency[_ <: AnyRef]] = dependencies.values.toSeq
 
   /**
    * Adds a new dependency to the manager.
