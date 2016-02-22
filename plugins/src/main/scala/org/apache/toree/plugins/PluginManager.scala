@@ -76,7 +76,7 @@ class PluginManager(
     // Search for plugins in our new paths, then add loaded plugins to list
     // NOTE: Iterator returned from plugin searcher, so avoid building a
     //       large collection by performing all tasks together
-    val newPlugins = pluginSearcher.search(paths).map(ci => {
+    val newPlugins = pluginSearcher.search(paths: _*).map(ci => {
       // Add valid path to class loader
       pluginClassLoader.addURL(ci.location.toURI.toURL)
 

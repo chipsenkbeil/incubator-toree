@@ -16,7 +16,7 @@
  */
 
 // BSD 3-clause license, used for detecting plugins
-libraryDependencies += "org.clapper" %% "classutil" % "1.0.6"
+libraryDependencies += "org.clapper" %% "classutil" % "1.0.3"
 
 // Needed for type inspection
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value

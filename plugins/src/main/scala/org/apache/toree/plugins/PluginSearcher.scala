@@ -11,6 +11,9 @@ import scala.annotation.tailrec
 class PluginSearcher {
   /** Contains all internal plugins for the system. */
   lazy val internal: Seq[ClassInfo] = findPluginClasses(ClassFinder()).toSeq
+  /*lazy val internal: Seq[ClassInfo] = findPluginClasses(ClassFinder(Seq(
+    new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI)
+  ))).toSeq*/
 
   /**
    * Searches in the provided paths (jars/zips/directories) for plugin classes.
@@ -19,7 +22,7 @@ class PluginSearcher {
    *
    * @return An iterator over plugin class information
    */
-  def search(paths: Seq[File]): Iterator[ClassInfo] = {
+  def search(paths: File*): Iterator[ClassInfo] = {
     findPluginClasses(ClassFinder(paths))
   }
 
