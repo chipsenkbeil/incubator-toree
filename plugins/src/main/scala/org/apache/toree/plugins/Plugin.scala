@@ -25,33 +25,32 @@ trait Plugin {
 
   /** Represents all @init methods in the plugin. */
   @Internal private[plugins] final lazy val initMethods: Seq[Method] = {
-    val methods = this.getClass.getMethods
-    methods.filter(_.isAnnotationPresent(classOf[annotations.Init]))
+    allMethods.filter(_.isAnnotationPresent(classOf[annotations.Init]))
   }
 
   /** Represents all @destroy methods in the plugin. */
   @Internal private[plugins] final lazy val destroyMethods: Seq[Method] = {
-    val methods = this.getClass.getMethods
-    methods.filter(_.isAnnotationPresent(classOf[annotations.Destroy]))
+    allMethods.filter(_.isAnnotationPresent(classOf[annotations.Destroy]))
   }
 
   /** Represents all @event methods in the plugin. */
   @Internal private[plugins] final lazy val eventMethods: Seq[Method] = {
-    val methods = this.getClass.getMethods
-    methods.filter(_.isAnnotationPresent(classOf[annotations.Event]))
+    allMethods.filter(_.isAnnotationPresent(classOf[annotations.Event]))
   }
 
   /** Represents all @events methods in the plugin. */
   @Internal private[plugins] final lazy val eventsMethods: Seq[Method] = {
-    val methods = this.getClass.getMethods
-    methods.filter(_.isAnnotationPresent(classOf[annotations.Events]))
+    allMethods.filter(_.isAnnotationPresent(classOf[annotations.Events]))
   }
+
+  /** Represents all public/protected methods contained by this plugin. */
+  private final lazy val allMethods: Seq[Method] = getClass.getMethods
 
   /** Represents mapping of event names to associated plugin methods. */
   @Internal private[plugins] final lazy val eventMethodMap: Map[String, Seq[Method]] = {
     import scala.collection.JavaConverters._
     val _eventMethodMap = new ConcurrentHashMap[String, Seq[Method]]().asScala
-    val allEventMethods = eventMethods ++ eventsMethods
+    val allEventMethods = (eventMethods ++ eventsMethods).distinct
 
     def add(name: String, m: Method) = _eventMethodMap.put(
       name,
@@ -74,23 +73,6 @@ trait Plugin {
   }
 
   /**
-   * Invokes the specified method on this plugin.
-   *
-   * @param methodName The name of the method
-   * @param methodParameterTypes The types for parameter arguments
-   * @param methodArguments The arguments to provide to the method
-   * @return The result of the invocation
-   */
-  @Internal private[plugins] final def invoke(
-    methodName: String,
-    methodParameterTypes: Seq[Class[_]],
-    methodArguments: Seq[AnyRef]
-  ): AnyRef = {
-    val method = this.getClass.getMethod(methodName, methodParameterTypes: _*)
-    method.invoke(this, methodArguments: _*)
-  }
-
-  /**
    * Registers a new dependency to be associated with this plugin.
    *
    * @param value The value of the dependency
@@ -109,7 +91,7 @@ trait Plugin {
    * @tparam T The dependency's type
    */
   protected def register[T <: AnyRef](name: String, value: T)(implicit typeTag: TypeTag[T]): Unit = {
-    require(_pluginManager != null, "Internal plugin manager reference invalid!")
+    assert(_pluginManager != null, "Internal plugin manager reference invalid!")
     _pluginManager.dependencyManager.add(name, value)
   }
 }

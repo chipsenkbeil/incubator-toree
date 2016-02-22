@@ -1,83 +1,289 @@
 package org.apache.toree.plugins
 
+import org.apache.toree.plugins.annotations.{Destroy, Events, Event, Init}
+import org.apache.toree.plugins.dependencies.DependencyManager
+import org.scalatest.mock.MockitoSugar
 import org.scalatest.{OneInstancePerTest, Matchers, FunSpec}
+import org.mockito.Mockito._
+import org.mockito.Matchers.{eq => mockEq, _}
+import scala.reflect.runtime.universe._
 
-class PluginSpec extends FunSpec with Matchers with OneInstancePerTest {
+class PluginSpec extends FunSpec with Matchers with OneInstancePerTest with MockitoSugar {
+  private val mockPluginManager = mock[PluginManager]
+  private val testPlugin = {
+    val plugin = new TestPlugin
+    plugin.pluginManager_=(mockPluginManager)
+    plugin
+  }
+  private val extendedTestPlugin = {
+    val extendedPlugin = new ExtendedTestPlugin
+    extendedPlugin.pluginManager_=(mockPluginManager)
+    extendedPlugin
+  }
+  private val registerPlugin = new RegisterPlugin
+
   describe("Plugin") {
     describe("#name") {
       it("should be the name of the class implementing the plugin") {
-        fail()
+        val expected = classOf[TestPlugin].getName
+
+        val actual = testPlugin.name
+
+        actual should be (expected)
       }
     }
 
     describe("#initMethods") {
-      it("should return any method annotated with @init including from ancestors") {
-        fail()
+      it("should return any method annotated with @Init including from ancestors") {
+        val expected = Seq(
+          // Inherited
+          classOf[TestPlugin].getDeclaredMethod("init2"),
+          classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+          // Overridden
+          classOf[ExtendedTestPlugin].getDeclaredMethod("init1"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+          // New
+          classOf[ExtendedTestPlugin].getDeclaredMethod("init4"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+        )
+
+        val actual = extendedTestPlugin.initMethods
+
+        actual should contain theSameElementsAs (expected)
       }
     }
 
     describe("#destroyMethods") {
-      it("should return any method annotated with @destroy including from ancestors") {
-        fail()
+      it("should return any method annotated with @Destroy including from ancestors") {
+        val expected = Seq(
+          // Inherited
+          classOf[TestPlugin].getDeclaredMethod("destroy2"),
+          classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+          // Overridden
+          classOf[ExtendedTestPlugin].getDeclaredMethod("destroy1"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+          // New
+          classOf[ExtendedTestPlugin].getDeclaredMethod("destroy4"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+        )
+
+        val actual = extendedTestPlugin.destroyMethods
+
+        actual should contain theSameElementsAs (expected)
       }
     }
 
     describe("#eventMethods") {
-      it("should return any method annotated with @event including from ancestors") {
-        fail()
+      it("should return any method annotated with @Event including from ancestors") {
+        val expected = Seq(
+          // Inherited
+          classOf[TestPlugin].getDeclaredMethod("event2"),
+          classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+          // Overridden
+          classOf[ExtendedTestPlugin].getDeclaredMethod("event1"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+          // New
+          classOf[ExtendedTestPlugin].getDeclaredMethod("event4"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+        )
+
+        val actual = extendedTestPlugin.eventMethods
+
+        actual should contain theSameElementsAs (expected)
       }
     }
 
     describe("#eventsMethods") {
-      it("should return any method annotated with @events including from ancestors") {
-        fail()
+      it("should return any method annotated with @Events including from ancestors") {
+        val expected = Seq(
+          // Inherited
+          classOf[TestPlugin].getDeclaredMethod("multiEvent2"),
+          classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+          // Overridden
+          classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent1"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+          // New
+          classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent4"),
+          classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+        )
+
+        val actual = extendedTestPlugin.eventsMethods
+
+        actual should contain theSameElementsAs (expected)
       }
     }
 
     describe("#eventMethodMap") {
       it("should return a map of event names to their annotated methods") {
-        fail()
-      }
-    }
+        val expected = Map(
+          "event1" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("event2"),
 
-    describe("#invoke") {
-      it("should invoke the specified method with the provided arguments") {
-        fail()
-      }
+            // Overridden
+            classOf[ExtendedTestPlugin].getDeclaredMethod("event1"),
+            classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent1"),
 
-      it("should support invoking protected methods") {
-        fail()
-      }
+            // New
+            classOf[ExtendedTestPlugin].getDeclaredMethod("event4"),
+            classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent4")
+          ),
+          "event2" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("multiEvent2"),
 
-      it("should support invoking private methods") {
-        fail()
-      }
+            // Overridden
+            classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent1"),
 
-      it("should throw an exception if the arguments do not match") {
-        fail()
-      }
+            // New
+            classOf[ExtendedTestPlugin].getDeclaredMethod("multiEvent4")
+          ),
+          "event3" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("multiEvent2")
+          ),
+          "mixed1" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("mixed2"),
 
-      it("should throw an exception if no method with the specified name is found") {
-        fail()
-      }
+            // Overridden
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
 
-      it("should throw an exception if the name exists but the parameter types are wrong") {
-        fail()
+            // New
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+          ),
+          "mixed2" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+            // Overridden
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+            // New
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+          ),
+          "mixed3" -> Seq(
+            // Inherited
+            classOf[TestPlugin].getDeclaredMethod("mixed2"),
+
+            // Overridden
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed1"),
+
+            // New
+            classOf[ExtendedTestPlugin].getDeclaredMethod("mixed4")
+          )
+        )
+
+        val actual = extendedTestPlugin.eventMethodMap
+
+        actual.keys should contain theSameElementsAs (expected.keys)
+        actual.foreach { case (k, v) =>
+          v should contain theSameElementsAs (expected(k))
+        }
       }
     }
 
     describe("#register") {
       it("should not allow registering a dependency if the plugin manager is not set") {
-        fail()
+        intercept[AssertionError] { registerPlugin.register(new AnyRef) }
+        intercept[AssertionError] { registerPlugin.register("id", new AnyRef) }
       }
 
       it("should create a new name for the dependency if not specified") {
-        fail()
+        registerPlugin.pluginManager_=(mockPluginManager)
+
+        val value = new AnyRef
+        val mockDependencyManager = mock[DependencyManager]
+        doNothing().when(mockDependencyManager).add(anyString(), mockEq(value))(any[TypeTag[AnyRef]])
+        doReturn(mockDependencyManager).when(mockPluginManager).dependencyManager
+
+        registerPlugin.register(value)
       }
 
       it("should add the dependency using the provided name") {
-        fail()
+        registerPlugin.pluginManager_=(mockPluginManager)
+
+        val name = "some name"
+        val value = new AnyRef
+        val mockDependencyManager = mock[DependencyManager]
+        doNothing().when(mockDependencyManager).add(mockEq(name), mockEq(value))(any[TypeTag[AnyRef]])
+        doReturn(mockDependencyManager).when(mockPluginManager).dependencyManager
+
+        registerPlugin.register(name, value)
       }
     }
+  }
+
+  private class TestPlugin extends Plugin {
+    @Init def init1() = {}
+    @Init protected def init2() = {}
+    @Init private def init3() = {}
+    @Event(name = "event1") def event1() = {}
+    @Event(name = "event1") protected def event2() = {}
+    @Event(name = "event1") private def event3() = {}
+    @Events(names = Array("event2", "event3")) def multiEvent1() = {}
+    @Events(names = Array("event2", "event3")) protected def multiEvent2() = {}
+    @Events(names = Array("event2", "event3")) private def multiEvent3() = {}
+    @Destroy def destroy1() = {}
+    @Destroy protected def destroy2() = {}
+    @Destroy private def destroy3() = {}
+
+    @Init
+    @Event(name = "mixed1")
+    @Events(names = Array("mixed2", "mixed3"))
+    @Destroy
+    def mixed1() = {}
+
+    @Init
+    @Event(name = "mixed1")
+    @Events(names = Array("mixed2", "mixed3"))
+    @Destroy
+    protected def mixed2() = {}
+
+    @Init
+    @Event(name = "mixed1")
+    @Events(names = Array("mixed2", "mixed3"))
+    @Destroy
+    private def mixed3() = {}
+  }
+
+  private class ExtendedTestPlugin extends TestPlugin {
+    @Init override def init1() = {}
+    @Event(name = "event1") override def event1() = {}
+    @Events(names = Array("event1", "event2")) override def multiEvent1() = {}
+    @Destroy override def destroy1() = {}
+    @Init
+    @Event(name = "mixed1")
+    @Events(names = Array("mixed2", "mixed3"))
+    @Destroy
+    override def mixed1() = {}
+
+    @Init def init4() = {}
+    @Event(name = "event1") def event4() = {}
+    @Events(names = Array("event1", "event2")) def multiEvent4() = {}
+    @Destroy def destroy4() = {}
+    @Init
+    @Event(name = "mixed1")
+    @Events(names = Array("mixed2", "mixed3"))
+    @Destroy
+    def mixed4() = {}
+  }
+
+  private class RegisterPlugin extends Plugin {
+    override def register[T <: AnyRef : TypeTag](
+      value: T
+    ): Unit = super.register(value)
+    override def register[T <: AnyRef](
+      name: String,
+      value: T
+    )(implicit typeTag: TypeTag[T]): Unit = super.register(name, value)
   }
 }
