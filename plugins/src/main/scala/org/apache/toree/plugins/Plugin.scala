@@ -23,6 +23,9 @@ trait Plugin {
     this._pluginManager = _pluginManager
   }
 
+  /** Returns the plugin manager pointer for this plugin. */
+  @Internal private[plugins] final def pluginManager = _pluginManager
+
   /** Represents all @init methods in the plugin. */
   @Internal private[plugins] final lazy val initMethods: Seq[Method] = {
     allMethods.filter(_.isAnnotationPresent(classOf[annotations.Init]))

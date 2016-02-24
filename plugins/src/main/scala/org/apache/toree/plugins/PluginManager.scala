@@ -59,24 +59,30 @@ class PluginManager(
   /**
    * Initializes the plugin manager, performing the expensive task of searching
    * for all internal plugins, creating them, and initializing them.
+   *
+   * @return The collection of loaded plugins
    */
-  def initialize(): Unit = {
-    initializePluginCollection(internalPlugins, DependencyManager.Empty)
+  def initialize(): Seq[Plugin] = {
+    val newPlugins = internalPlugins.flatMap(t =>
+      loadPlugin(t._1, t._2).toOption
+    ).toSeq
+    initializePlugins(newPlugins, DependencyManager.Empty)
+    newPlugins
   }
 
   /**
-   * Loads and initializes plugins from the provided paths.
+   * Loads (but does not initialize) plugins from the provided paths.
    *
    * @param paths The file paths from which to load new plugins
+   *
+   * @return The collection of loaded plugins
    */
-  def loadPlugins(paths: File*): Unit = {
-    // Add all paths to search path of our plugin class loader
-    paths.map(_.toURI.toURL).foreach(pluginClassLoader.addURL)
-
+  def loadPlugins(paths: File*): Seq[Plugin] = {
     // Search for plugins in our new paths, then add loaded plugins to list
     // NOTE: Iterator returned from plugin searcher, so avoid building a
     //       large collection by performing all tasks together
-    val newPlugins = pluginSearcher.search(paths: _*).map(ci => {
+    @volatile var newPlugins = collection.mutable.Seq[Plugin]()
+    pluginSearcher.search(paths: _*).foreach(ci => {
       // Add valid path to class loader
       pluginClassLoader.addURL(ci.location.toURI.toURL)
 
@@ -86,31 +92,65 @@ class PluginManager(
       // Add to external plugin list
       externalPlugins.put(ci.name, klass)
 
-      // Return structure for map
-      ci.name -> klass
+      // Load the plugin using the given name and class
+      loadPlugin(ci.name, klass).foreach(newPlugins :+= _)
     })
-
-    // Initialize new external plugins
-    initializePluginCollection(newPlugins.toMap, DependencyManager.Empty)
+    newPlugins
   }
 
   /**
-   * Creates and initializes a collection of plugins that may/may not have
+   * Loads the plugin using the specified name.
+   *
+   * @param name The name of the plugin
+   * @param klass The class representing the plugin
+   * @return The new plugin instance if no plugin with the specified name
+   *         exists, otherwise the plugin instance with the name
+   */
+  def loadPlugin(name: String, klass: Class[_]): Try[Plugin] = {
+    if (isActive(name)) {
+      logger.warn(s"Skipping $name as already actively loaded!")
+      Success(activePlugins(name))
+    } else {
+      logger.debug(s"Loading $name as plugin")
+
+      // Assume that each plugin has an empty constructor
+      val tryInstance = Try(klass.newInstance())
+
+      // Log failures
+      tryInstance.failed.foreach(ex =>
+        logger.error(s"Failed to load plugin $name", ex))
+
+      // Attempt to cast as plugin type to add to active plugins
+      tryInstance.transform({
+        case p: Plugin  =>
+          p.pluginManager_=(this)
+          activePlugins.put(p.name, p)
+          Success(p)
+        case x          =>
+          val name = x.getClass.getName
+          logger.warn(s"Unknown plugin type '$name', ignoring!")
+          Failure(new UnknownPluginTypeException(name))
+      }, f => Failure(f))
+    }
+  }
+
+  /**
+   * Initializes a collection of plugins that may/may not have
    * dependencies on one another.
    *
-   * @param plugins The map of plugins (name, class) to create and initialize
+   * @param plugins The collection of plugins to initialize
    * @param scopedDependencyManager The dependency manager containing scoped
    *                                dependencies to use over global ones
-   * @return True if all plugins successfully created and initialized,
-   *         otherwise false
+   * @return Map of plugin names to results of each initialize callback invoked
+   *         for that plugin
    */
-  private def initializePluginCollection(
-    plugins: Map[String, Class[_]],
-    scopedDependencyManager: DependencyManager
-  ): Boolean = {
-    val pluginBundles = createPluginInstances(plugins).values.flatMap(p =>
+  def initializePlugins(
+    plugins: Seq[Plugin],
+    scopedDependencyManager: DependencyManager = DependencyManager.Empty
+  ): Map[String, Seq[Try[AnyRef]]] = {
+    val pluginBundles = plugins.flatMap(p =>
       p.initMethods.map(m => (p, m)).map(b => (p.name, b))
-    ).toSeq
+    )
     val pluginNames = pluginBundles.map(_._1)
     val results = pluginNames.zip(invokePluginMethods(
       pluginBundles.map(_._2),
@@ -118,7 +158,8 @@ class PluginManager(
     ))
 
     // Mark success/failure
-    results.groupBy(_._1).map { case (pluginName, g) =>
+    val groupedResults = results.groupBy(_._1)
+    groupedResults.foreach { case (pluginName, g) =>
       val failures = g.map(_._2).flatMap(_.failed.toOption)
       val success = failures.isEmpty
 
@@ -127,51 +168,57 @@ class PluginManager(
 
       // Log any specific failures for the plugin
       failures.foreach(ex => logger.error(pluginName, ex))
+    }
 
-      success
-    }.forall(_ == true)
+    groupedResults.mapValues(_.map(_._2))
   }
 
   /**
-   * Initializes a plugin by invoking any init methods.
+   * Destroys a collection of plugins that may/may not have
+   * dependencies on one another.
    *
-   * @param name The fully-qualified class name of the plugin
+   * @param plugins The collection of plugins to destroy
    * @param scopedDependencyManager The dependency manager containing scoped
    *                                dependencies to use over global ones
-   * @return True if able to initialize, otherwise false
+   * @param destroyOnFailure If true, destroys the plugin even if its destroy
+   *                         callback fails
+   * @return Map of plugin names to results of each destroy callback invoked
+   *         for that plugin
    */
-  def initializePlugin(
-    name: String,
-    scopedDependencyManager: DependencyManager = DependencyManager.Empty
-  ): Boolean = findPlugin(name).exists(p =>
-    initializePlugin(p, scopedDependencyManager)
-  )
-
-  /**
-   * Initializes a plugin by invoking any init methods.
-   *
-   * @param plugin The plugin instance to initialize
-   * @param scopedDependencyManager The dependency manager containing scoped
-   *                                dependencies to use over global ones
-   * @return True if able to initialize, otherwise false
-   */
-  def initializePlugin(
-    plugin: Plugin,
-    scopedDependencyManager: DependencyManager
-  ): Boolean = {
-    val results = invokePluginMethods(
-      plugin,
-      plugin.initMethods,
-      scopedDependencyManager
+  def destroyPlugins(
+    plugins: Seq[Plugin],
+    scopedDependencyManager: DependencyManager = DependencyManager.Empty,
+    destroyOnFailure: Boolean = true
+  ): Map[String, Seq[Try[AnyRef]]] = {
+    val pluginBundles = plugins.flatMap(p =>
+      p.destroyMethods.map(m => (p, m)).map(b => (p.name, b))
     )
-    val success = results.forall(_.isSuccess)
+    val pluginNames = pluginBundles.map(_._1)
+    val results = pluginNames.zip(invokePluginMethods(
+      pluginBundles.map(_._2),
+      scopedDependencyManager
+    ))
 
-    // Report status
-    val name = plugin.name
-    if (success) logger.debug(s"Successfully initialized plugin $name!")
-    else logger.warn(s"Failed to initialize plugin $name!")
+    // Perform check to remove destroyed plugins
+    val groupedResults = results.groupBy(_._1)
+    groupedResults.foreach { case (pluginName, g) =>
+      val failures = g.map(_._2).flatMap(_.failed.toOption)
+      val success = failures.isEmpty
 
-    success
+      if (success) logger.debug(s"Successfully destroyed plugin $pluginName!")
+      else if (destroyOnFailure) logger.debug(
+        s"Failed to invoke some teardown methods, but destroyed plugin $pluginName!"
+      )
+      else logger.warn(s"Failed to destroy plugin $pluginName!")
+
+      // If successful or forced, remove the plugin from our active list
+      if (success || destroyOnFailure) activePlugins.remove(pluginName)
+
+      // Log any specific failures for the plugin
+      failures.foreach(ex => logger.error(pluginName, ex))
+    }
+
+    groupedResults.mapValues(_.map(_._2))
   }
 
   /**
@@ -181,59 +228,6 @@ class PluginManager(
    * @return Some plugin if found, otherwise None
    */
   def findPlugin(name: String): Option[Plugin] = plugins.find(_.name == name)
-
-  /**
-   * Destroys a plugin by invoking any destroy methods.
-   *
-   * @param name The fully-qualified class name of the plugin
-   * @param scopedDependencyManager The dependency manager containing scoped
-   *                                dependencies to use over global ones
-   * @param destroyOnFailure If true, will destroy the plugin even if the
-   *                         teardown methods fail
-   * @return True if able to destroy, otherwise false
-   */
-  def destroyPlugin(
-    name: String,
-    scopedDependencyManager: DependencyManager = DependencyManager.Empty,
-    destroyOnFailure: Boolean = true
-  ): Boolean = findPlugin(name).exists(p =>
-    destroyPlugin(p, scopedDependencyManager, destroyOnFailure)
-  )
-
-  /**
-   * Destroys a plugin by invoking any destroy methods.
-   *
-   * @param plugin The plugin instance to destroy
-   * @param scopedDependencyManager The dependency manager containing scoped
-   *                                dependencies to use over global ones
-   * @param destroyOnFailure If true, will destroy the plugin even if the
-   *                         teardown methods fail
-   * @return True if able to destroy, otherwise false
-   */
-  def destroyPlugin(
-    plugin: Plugin,
-    scopedDependencyManager: DependencyManager,
-    destroyOnFailure: Boolean
-  ): Boolean = {
-    val results = invokePluginMethods(
-      plugin,
-      plugin.destroyMethods,
-      scopedDependencyManager
-    )
-    val success = results.forall(_.isSuccess)
-
-    // Report status
-    val name = plugin.name
-    if (success) logger.debug(s"Successfully destroyed plugin $name!")
-    else if (destroyOnFailure) logger.warn(
-      s"Failed to invoke some teardown methods, but destroyed plugin $name!"
-    ) else logger.warn(s"Failed to destroy plugin $name!")
-
-    // If successful or forced, remove the plugin from our active list
-    if (success || destroyOnFailure) activePlugins.remove(name)
-
-    success || destroyOnFailure
-  }
 
   /**
    * Sends an event to all plugins actively listening for that event.
@@ -269,41 +263,6 @@ class PluginManager(
     ).toSeq
 
     invokePluginMethods(bundles, scopedDependencyManager)
-  }
-
-  /**
-   * Attempts to invoke all methods against a specific plugin. This is a naive
-   * implementation that continually invokes methods until either all methods
-   * are successful or failures are detected (needing dependencies that other
-   * methods do not provide).
-   *
-   * @param plugin The plugin whose methods to invoke
-   * @param methods The methods of the plugin to invoke
-   * @param scopedDependencyManager The dependency manager containing scoped
-   *                                dependencies to use over global ones
-   * @return The collection of results (in same order as bundles)
-   */
-  private def invokePluginMethods(
-    plugin: Plugin,
-    methods: Seq[Method],
-    scopedDependencyManager: DependencyManager
-  ): Seq[Try[AnyRef]] = {
-    val bundles = methods.map(m => (plugin, m))
-    val results = invokePluginMethods(bundles, scopedDependencyManager).zip(
-      methods.map(_.getName)
-    )
-
-    val name = plugin.name
-
-    // Report status for each invocation
-    results.foreach { case (result, methodName) => result match {
-      case Success(r) =>
-        logger.debug(s"Successfully invoked $name.$methodName, returning $r")
-      case Failure(ex) =>
-        logger.error(s"Failed to invoke $name.$methodName", ex)
-    } }
-
-    results.map(_._1)
   }
 
   /**
@@ -403,42 +362,5 @@ class PluginManager(
 
     // Invoke plugin method
     method.invoke(plugin, arguments: _*)
-  }
-
-  /**
-   * Creates new instances of provided plugins if NOT already in the active
-   * plugin list.
-   *
-   * @param pluginClasses The map of class names and class information
-   * @return Map containing all newly-created plugins (any plugin skipped due
-   *         to being active is not included)
-   */
-  private def createPluginInstances(
-    pluginClasses: Map[String, Class[_]]
-  ): Map[String, Plugin] = {
-    pluginClasses.filter { case (name, _) =>
-      val active = isActive(name)
-      if (active) logger.warn(s"Skipping $name as already actively loaded!")
-      !active
-    }.flatMap { case (name, klass) =>
-      logger.debug(s"Loading $name as plugin")
-
-      // Assume that each plugin has an empty constructor
-      val tryInstance = Try(klass.newInstance())
-
-      // Log failures
-      tryInstance.failed.foreach(ex => logger.error(s"Failed to load $name", ex))
-
-      // Attempt to cast as plugin type to add to active plugins
-      tryInstance.map {
-        case p: Plugin  =>
-          p.pluginManager_=(this)
-          activePlugins.put(name, p)
-          Some((name, p))
-        case x          =>
-          logger.warn(s"Unknown plugin type '${x.getClass.getName}', ignoring!")
-          None
-      }.getOrElse(None)
-    }
   }
 }
